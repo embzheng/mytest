@@ -1,0 +1,90 @@
+Mini-XML 入门
+这一章描述了如何写一个程序使用Mini-XML来访问XML文件中的数据.Mini-XML提供了以下功能:
+在内存中创建和管理XML文档的函数.
+读UTF-8和UTF-16 编码的XML文件和字符串.
+写UTF-8 编码的XML文件和字符串.
+支持任意的元素名称，属性以及属性值，没有任何其他限制，仅受限于有效内存.
+支持整形、浮点、自定义("CDATA")和文本数据类型在"叶"节点.
+提供"查找"、"索引"、以及"步进"函数可以很简单的访问XML文档中的数据.
+Mini-XML 不进行基于"XML方案(SCHEMA)"文件或者其他内容源定义信息的校验和其他类型的处理 ,也不支持其他组织所要求的XML规范.
+基础知识
+Mini-XML 提供的一个你需要包含的头文件:
+#include <mxml.h>
+把Mini-XML库连接到你的应用程序使用 -lmxml 选项:
+gcc -o myprogram myprogram.c -lmxml ENTER
+如果你已经安装pkg-config(1) 软件, 你可以使用它来为你的安装确定适当的编译和连接选项:
+pkg-config --cflags mxml ENTER pkg-config --libs mxml ENTER
+节点
+每一块XML文件中的信息片断(元素、文本、数字)是一个存储在内存中的"节点(nodes)" .节点使用 mxml_node_t 结构进行定义. 它的type 成员变量定义了节点类型（element, integer, opaque, real, or text) 决定了需要从联合(union)类型的成员变量 value 中获取的值.
+表 2-1: Mini-XML 节点值的成员变量
+值	类型	节点成员
+用户定义	void *	node->value.custom.data
+XML元素	char *	node->value.element.name
+整数	int	node->value.integer
+不透明字符串	char *	node->value.opaque
+浮点数	double	node->value.real
+文本	char *	node->value.text.string
+译者：节点类型定义枚举参见：mxml_type_e。Mini-XML中的节点类型定义和其他有些解析器有些不同，其中整数、浮点、和文本节点是指在一个XML元素中一系列的使用空格作为分割的值，每个元素可以拥有多个以上节点，并可以选择使用空格分开，如：<abc>aa bb cc</abc>，Mini-MXML在使用参数：MXML_TEXT_CALLBACK进行载入时，将在abc元素下面生成3个text类型的子节点。在创建时也可以使用同样的方式创建节点。整数和浮点也是同样方式，但如果转换失败则MiniXML报错。而不透明字符串类型(OPAQUE)则不进行字符串分割，在载入时需要使用MXML_OPAQUE_CALLBACK参数，将所有字符串形成一个子节点。详情见：使用加载回调函数。 Z.F
+每一个节点总是有一个成员变量:user_data 可以允许你为每一个节点关联你需要的应用数据.
+新的节点可以使用以下函数进行创建 mxmlNewElement, mxmlNewInteger , mxmlNewOpaque, mxmlNewReal, mxmlNewText mxmlNewTextf mxmlNewXML . 只有 elements 可以拥有子节点，顶级节点必须是一个 element , 通常是<?xml version="1.0"?> 使用mxmlNewXML()函数创建的节点.
+每个节点都有一些关联节点的指针，上(parent), 下( child), 左(prev), and 右(next) 相对应于当前节点. 如果你有一个XML文件如下所示:
+<?xml version="1.0"?> <data> <node>val1</node> <node>val2</node> <node>val3</node> <group> <node>val4</node> <node>val5</node> <node>val6</node> </group> <node>val7</node> <node>val8</node> </data>
+那么在内存中的文件节点树看上去如下所示:
+?xml | data | node - node - node - group - node - node | | | | | | val1 val2 val3 | val7 val8 | node - node - node | | | val4 val5 val6
+这里"-"指向下一个节点，"|"指向第一个子节点。
+当你使用完毕这些XML数据后，使用函数 mxmlDelete 来释放指定节点或者整个XML树节点和它下面所有子节点的内存:
+mxmlDelete(tree);
+创建 XML 文档
+你可以在内存中创建和更新XML文档，使用 mxmlNew 一系列函数. 下面的代码将创建上一章描述的XML文档:
+mxml_node_t *xml; mxml_node_t *data; mxml_node_t *node; mxml_node_t *group; xml = mxmlNewXML("1.0"); data = mxmlNewElement(xml, "data"); node = mxmlNewElement(data, "node"); mxmlNewText(node, 0, "val1"); node = mxmlNewElement(data, "node"); mxmlNewText(node, 0, "val2"); node = mxmlNewElement(data, "node"); mxmlNewText(node, 0, "val3"); group = mxmlNewElement(data, "group"); node = mxmlNewElement(group, "node"); mxmlNewText(node, 0, "val4"); node = mxmlNewElement(group, "node"); mxmlNewText(node, 0, "val5"); node = mxmlNewElement(group, "node"); mxmlNewText(node, 0, "val6"); node = mxmlNewElement(data, "node"); mxmlNewText(node, 0, "val7"); node = mxmlNewElement(data, "node"); mxmlNewText(node, 0, "val8");
+我们首先使用mxmlNewXML函数来创建所有XML文件都需要的标头 <?xml version="1.0"?> :
+xml = mxmlNewXML("1.0");
+然后我们使用mxmlNewElement函数来创建本文件使用的<data>节点.第一个参数指定了父节点(xml) ，第二个参数是元素名 (data):
+data = mxmlNewElement(xml, "data");
+每个在本文件中<node>...</node>之间的部分使用函数 mxmlNewElement 和 mxmlNewText来创建. mxmlNewText 的第一个参数指定了父节点 (node).第二个参数指定了是否在文本之前添加空白字符，在本例中使用0或者false.最后一个参数指定了需要添加的实际文本:
+node = mxmlNewElement(data, "node"); mxmlNewText(node, 0, "val1");
+在内存中的XML结果可以被保存或者进行其他处理，就像一个从磁盘或者字符串中读取的文档一样.
+加载XML
+你可以加载一个XML文件使用函数 mxmlLoadFile :
+FILE *fp; mxml_node_t *tree; fp = fopen("filename.xml", "r"); tree = mxmlLoadFile(NULL, fp, MXML_TEXT_CALLBACK); fclose(fp);
+第一个参数如果有的话则指定了一个存在的XML父节点.一般你将这个参数等于NULL,除非你想要连接多个XML源. 如果此参数等于NULL，那么指定的XML文件必须是一个完整的XML文档，文档头部要包含?xml元素.
+第二个参数指定了一个标准的文件流，使用 fopen() 或者 popen()进行打开. 你也可以使用stdin，如果你想要实现一个XML过滤器程序.
+第三个参数指定了一个回调函数用于一个新的XML元素节点直接返回的子节点的值类型: MXML_CUSTOM, MXML_IGNORE, MXML_INTEGER, MXML_OPAQUE,MXML_REAL, or MXML_TEXT. 加载回调函数的细节在第三章做了详细描述. 示例代码使用 MXML_TEXT_CALLBACK 常量指定文档中所有的数据节点都包含使用以空格字符分割的文本的值. 其他标准的回调还有 MXML_IGNORE_CALLBACK, MXML_INTEGER_CALLBACK, MXML_OPAQUE_CALLBACK, 和MXML_REAL_CALLBACK.
+函数mxmlLoadString 可以从一个字符串中载入XML节点树:
+char buffer[8192]; mxml_node_t *tree; ... tree = mxmlLoadString(NULL, buffer, MXML_TEXT_CALLBACK);
+第一个和第三个参数和 mxmlLoadFile()用法一样. 第二个参数指定了指定了字符串或者字符缓冲区用于加载XML，当父节点参数为NULL时内容必须为完整的XML文档，包括XML头?xml元素.
+保存 XML
+你可以保存XML文件使用 mxmlSaveFile 函数:
+FILE *fp; mxml_node_t *tree; fp = fopen("filename.xml", "w"); mxmlSaveFile(tree, fp, MXML_NO_CALLBACK); fclose(fp);
+第一个参数为想要保存的XML节点树,一般应该是一个指向你的XML文档顶级节点?xml的节点指针.
+第二个单数是一个标准文件流，使用 fopen() 或者 popen()来打开. 你也可以使用stdout 如果你想要实现一个XML过滤器程序.
+第三个参数是一个空白回调函数用来控制保存文件时插入的"空白"字符."空白回调"的详细信息参见 第三章. 以上的示例代码使用了MXML_NO_CALLBACK常量来指定不需要特别的空白处理.
+函数mxmlSaveAllocString, 和mxmlSaveString 保存XML节点树到一个字符串中:
+char buffer[8192]; char *ptr; mxml_node_t *tree; ... mxmlSaveString(tree, buffer, sizeof(buffer), MXML_NO_CALLBACK); ... ptr = mxmlSaveAllocString(tree, MXML_NO_CALLBACK);
+第一个和最后一个参数的用法和函数 mxmlSaveFile()一样. 函数mxmlSaveString 给出了一个指针和长度的参数来保存XML文档到一个固定大小的缓冲区中。, mxmlSaveAllocString() 返回了使用malloc分配的一个字符串缓冲区malloc().
+自动折行控制
+当我们保存XML文档时, Mini-XML一般在第75列进行折行，因为这样在终端下最易读. 函数 mxmlSetWrapMargin 可以覆盖缺省的折行界限:
+mxmlSetWrapMargin(132); mxmlSetWrapMargin(0);
+搜索和遍历节点
+函数mxmlWalkPrev and mxmlWalkNext可以被用来遍历XML节点树:
+mxml_node_t *node; node = mxmlWalkPrev(current, tree, MXML_DESCEND); node = mxmlWalkNext(current, tree, MXML_DESCEND);
+另外,你可以搜索一个命名的XML元素/节点,使用函数 mxmlFindElement:
+mxml_node_t *node; node = mxmlFindElement(tree, tree, "name", "attr", "value", MXML_DESCEND);
+参数name, attr, 和value 可以被设置为NULL作为全部匹配, e.g.:
+node = mxmlFindElement(tree, tree, "a", NULL, NULL, MXML_DESCEND);
+node = mxmlFindElement(tree, tree, "a", "href", NULL, MXML_DESCEND);
+node = mxmlFindElement(tree, tree, "a", "href", "http://www.easysw.com/", MXML_DESCEND);
+node = mxmlFindElement(tree, tree, NULL, "src", NULL, MXML_DESCEND);
+node = mxmlFindElement(tree, tree, NULL, "src", "foo.jpg", MXML_DESCEND);
+你也可以使用同样的功能进行遍历:
+mxml_node_t *node; for (node = mxmlFindElement(tree, tree, "name", NULL, NULL, MXML_DESCEND); node != NULL; node = mxmlFindElement(node, tree, "name", NULL, NULL, MXML_DESCEND)) { ... do something ... }
+参数MXML_DESCEND可以是下面三个常量之一:
+MXML_NO_DESCEND 含义是不查看任何的子节点在XML元素层次中，仅查看同级的伙伴节点或者父节点直到到达顶级节点或者给出的树的顶级节点.
+"group"节点的上一个节点时它左面的"node"子节点,下一个节点是"group"右面的"node"子节点.. 
+
+MXML_DESCEND_FIRST含义是向下搜索到一个节点的第一个匹配子节点，但不再继续向下搜索。你一般使用于遍历一个父节点的直接的子节点。 ,如：在上面的例子中的所有在"?xml"父节点下的所有的"node"和"group"子节点。.
+这个模式仅适用于搜索(search)功能，遍历功能(walk)对待它和 MXML_DESCEND 一样，因为每次调用都是首次调用。 
+
+MXML_DESCEND含义是一直向下直到树的根部. "group"节点的上一个节点将是"val3"节点，下一个节点将是"group"的下面的第一个子节点。
+如果你要使用函数mxmlWalkNext()从根结点"?xml" 遍历到整个树的结束, 那么这个顺序将如下所示：
+?xml data node val1 node val2 node val3 group node val4 node val5 node val6 n

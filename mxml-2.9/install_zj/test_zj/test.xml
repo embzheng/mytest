@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+	<appname name="weixin" id="1" enable="1" keynum="3">
+		<appmatch matchstring="weixin.qq" />
+		<key id="0" protocol="http" portfilter="none" keyword="KEYWORD1" keyfind="uin=" rules="%14[0-9]" coding="ascii" minlen="4" maxlen="14" />
+		<key id="1" protocol="http" portfilter="none" keyword="KEYWORD2" keyfind="xxx=" rules="%14[0-9]" coding="ascii" minlen="4" maxlen="14" />
+	</appname>
+	<appname name="mop" id="2" enable="1" keynum="1">
+		<appmatch matchstring="mop.com" />
+		<key id="0" protocol="http" portfilter="none" keyword="KEYWORD1" keyfind="_mu=" rules="%14[0-9]" coding="ascii" minlen="4" maxlen="14" />
+	</appname>
+</root>
+
+	
